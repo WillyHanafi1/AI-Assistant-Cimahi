@@ -1,6 +1,6 @@
 streamlit
 langchain-openai
-langchain.schema
+langchain
 python-dotenv
 requests
 numpy

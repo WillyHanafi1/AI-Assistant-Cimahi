@@ -113,10 +113,10 @@ llm = ChatOpenAI(
     openai_api_key=get_env_var("OPENROUTER_API_KEY"),
     openai_api_base=get_env_var("OPENROUTER_BASE_URL"),
     model_name=get_env_var("DEFAULT_MODEL", "deepseek/deepseek-r1-0528:free"),
-    max_tokens=1000,
+    max_tokens=1500,
     temperature=0.1,
-    request_timeout=45,
-    streaming=True,
+    request_timeout=60,
+    streaming=False,  # Disabled streaming for more reliable responses
 )
 
 # Build retriever using FAISS index
@@ -313,21 +313,27 @@ if page == "Chatbot Layanan":
                 if results:
                     # Create shorter context for faster processing
                     context = "\n\n".join([result["text"][:800] for result in results[:3]])
-                    
-                    # Show retrieved sources
+                      # Show retrieved sources
                     with st.expander("📚 Sumber Informasi"):
                         st.info(f"⚡ Pencarian: {search_time:.2f}s | Dokumen: {len(results)}")
                         for i, result in enumerate(results[:3], 1):  # Fixed: showing only top 3
                             st.write(f"**{i}. {result['filename']}**")
-                            st.write(f"_{result['text'][:150]}..._")
+                            st.write(f"_{result['text'][:150]}..._")                    # Optimized system message for better response reliability
+                    system_prompt = """Anda adalah chatbot resmi Kota Cimahi yang membantu warga dengan informasi layanan publik. 
+                    
+INSTRUKSI PENTING:
+1. Jawab HANYA berdasarkan dokumen yang disediakan
+2. Berikan jawaban yang lengkap dan informatif
+3. Jika informasi tidak ada dalam dokumen, katakan "Maaf, informasi tersebut tidak tersedia dalam dokumen yang saya miliki"
+4. Gunakan bahasa yang sopan dan mudah dipahami
+5. SELALU berikan jawaban yang substantif, bukan hanya informasi teknis"""
 
-                    # Optimized system message
                     messages = [
-                        SystemMessage(content="Anda adalah chatbot Kota Cimahi. Jawab berdasarkan dokumen dengan lengkap dan jelas."),
-                        SystemMessage(content=f"Konteks:\n{context}"),
-                        HumanMessage(content=user_question)
+                        SystemMessage(content=system_prompt),
+                        SystemMessage(content=f"KONTEKS DOKUMEN:\n{context}"),
+                        HumanMessage(content=f"Pertanyaan: {user_question}")
                     ]
-
+                    
                     # Initialize response container
                     with st.chat_message("assistant", avatar="🤖"):
                         llm_start = time.time()
@@ -335,28 +341,42 @@ if page == "Chatbot Layanan":
                         full_response = ""
                         
                         try:
-                            # Stream the response chunk by chunk
-                            for chunk in llm.stream(messages):
-                                if hasattr(chunk, 'content') and chunk.content:
-                                    full_response += chunk.content
-                                    # Show partial response with typing indicator
-                                    response_placeholder.markdown(full_response + " ▌")
+                            # Use invoke for more reliable response instead of streaming
+                            response = llm.invoke(messages)
                             
-                            # Remove typing indicator and finalize response
+                            # Extract response content safely
+                            if hasattr(response, 'content'):
+                                full_response = response.content
+                            elif hasattr(response, 'text'):
+                                full_response = response.text
+                            else:
+                                full_response = str(response)
+                            
+                            # Clean and validate response
+                            if isinstance(full_response, str):
+                                full_response = full_response.strip()
+                            
+                            # Check if we got a meaningful response
+                            if not full_response or len(full_response) < 5:
+                                st.warning("⚠️ Model memberikan respons kosong. Menggunakan respons alternatif...")
+                                full_response = f"Berdasarkan dokumen yang tersedia mengenai '{user_question}':\n\n{context[:800]}...\n\nUntuk informasi lebih lengkap, silakan hubungi kantor pelayanan terkait."
+                            
                             llm_time = time.time() - llm_start
                             total_time = time.time() - start_time
                             
                             # Add performance info
                             perf_info = f"\n\n---\n⚡ **Waktu**: {total_time:.2f}s (Pencarian: {search_time:.2f}s, LLM: {llm_time:.2f}s)"
                             final_response = full_response + perf_info
-                            
-                            # Show final response without cursor
+                              # Show final response
                             response_placeholder.markdown(final_response)
                             answer = final_response  # Store the complete answer
-                            
+                        
                         except Exception as e:
                             llm_time = time.time() - llm_start
-                            error_msg = f"Timeout setelah {llm_time:.1f}s. Coba pertanyaan yang lebih spesifik. Error: {str(e)}"
+                            st.error(f"Error saat mengambil respons LLM: {str(e)}")
+                            
+                            # Provide fallback response based on context
+                            error_msg = f"Terjadi kesalahan saat memproses permintaan. Namun berdasarkan informasi yang tersedia:\n\n{context[:600]}...\n\nSilakan coba lagi atau hubungi layanan terkait untuk informasi lebih detail."
                             response_placeholder.markdown(error_msg)
                             answer = error_msg
                 
