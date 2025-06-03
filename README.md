@@ -1,13 +1,22 @@
 # Smart Chatbot Kota Cimahi
 
+✅ **Status**: Production Ready - Deployed and Tested
+
 Aplikasi chatbot cerdas untuk layanan publik Kota Cimahi menggunakan teknologi AI dan vector search.
 
 ## Features
-- 🤖 Chatbot AI dengan kemampuan RAG (Retrieval Augmented Generation)
-- 📝 Sistem pengaduan masyarakat 
-- 🛠️ Dashboard admin untuk mengelola pengaduan
-- 🔍 Pencarian dokumen dengan FAISS vector search
-- ⚡ Streaming response untuk experience yang lebih baik
+- 🤖 **AI Chatbot** dengan kemampuan RAG (Retrieval Augmented Generation)
+- 📝 **Sistem pengaduan masyarakat** dengan klasifikasi otomatis
+- 🛠️ **Dashboard admin** untuk mengelola pengaduan
+- 🔍 **Pencarian dokumen** dengan FAISS vector search
+- ⚡ **Response optimization** dengan fallback handling
+- 🛡️ **Error resilience** dan mode demo otomatis
+
+## Recent Improvements ✨
+- **Fixed LLM Response Issues**: Enhanced reliability with better error handling
+- **Improved System Prompts**: More substantial and relevant responses
+- **Automatic Fallback**: Works even when FAISS files are unavailable
+- **Production Ready**: Tested and optimized for Streamlit Cloud deployment
 
 ## Tech Stack
 - **Framework**: Streamlit
@@ -15,6 +24,22 @@ Aplikasi chatbot cerdas untuk layanan publik Kota Cimahi menggunakan teknologi A
 - **Embeddings**: Jina AI
 - **Vector Search**: FAISS
 - **Backend**: Python
+
+## Quick Deployment 🚀
+
+### Streamlit Cloud (Recommended)
+1. **Fork this repository** to your GitHub account
+2. **Get API Keys**:
+   - OpenRouter API: [openrouter.ai](https://openrouter.ai) (free tier available)
+   - Jina AI API: [jina.ai](https://jina.ai) (1000 requests/day free)
+3. **Deploy to Streamlit Cloud**:
+   - Go to [share.streamlit.io](https://share.streamlit.io)
+   - Connect your GitHub and select this repository
+   - Set main file: `app4.py`
+   - Add secrets in Advanced Settings (see `secrets_template.toml`)
+   - Click Deploy!
+
+📖 **Detailed Guide**: See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for complete instructions.
 
 ## Local Development
 
