@@ -26,6 +26,24 @@ def get_env_var(key, default=None):
         # Fallback to environment variable (for local development)
         return getenv(key, default)
 
+# Debug function to check API key availability
+def check_api_keys():
+    """Debug function to check if API keys are properly loaded"""
+    openrouter_key = get_env_var("OPENROUTER_API_KEY")
+    jina_key = get_env_var("JINA_API_KEY")
+    
+    if openrouter_key:
+        st.success(f"✅ OpenRouter API key loaded (ending with: ...{openrouter_key[-4:]})")
+    else:
+        st.error("❌ OpenRouter API key not found!")
+        
+    if jina_key:
+        st.success(f"✅ Jina API key loaded (ending with: ...{jina_key[-4:]})")
+    else:
+        st.error("❌ Jina API key not found!")
+    
+    return openrouter_key is not None and jina_key is not None
+
 # Load FAISS index (wajib ada sebelum aplikasi dijalankan)
 faiss_index_path = "faiss_index"
 faiss_metadata_path = "faiss_metadata.json"  
@@ -112,11 +130,9 @@ def get_cached_embedding(text, api_key, cache_key=None):
 llm = ChatOpenAI(
     openai_api_key=get_env_var("OPENROUTER_API_KEY"),
     openai_api_base=get_env_var("OPENROUTER_BASE_URL"),
-    model_name=get_env_var("DEFAULT_MODEL", "deepseek/deepseek-r1-0528:free"),
-    max_tokens=1500,
+    model_name=get_env_var("DEFAULT_MODEL", "deepseek/deepseek-chat"),
     temperature=0.1,
-    request_timeout=60,
-    streaming=False,  # Disabled streaming for more reliable responses
+    streaming=True,  # Enable streaming for better user experience
 )
 
 # Build retriever using FAISS index
@@ -275,6 +291,11 @@ def get_jina_batch_embedding(texts, api_key, model="jina-embeddings-v3"):
 # --- Navigasi Halaman ---
 page = st.sidebar.radio("Pilih Halaman", ["Chatbot Layanan", "Pengaduan Masyarakat", "Dashboard Admin"])
 
+# Add debug section in sidebar
+with st.sidebar.expander("🔧 Debug Info"):
+    if st.button("Check API Keys"):
+        check_api_keys()
+
 # ----------------------------
 # PAGE 1: Chatbot Layanan Publik
 # ----------------------------
@@ -333,52 +354,71 @@ INSTRUKSI PENTING:
                         SystemMessage(content=f"KONTEKS DOKUMEN:\n{context}"),
                         HumanMessage(content=f"Pertanyaan: {user_question}")
                     ]
-                    
-                    # Initialize response container
+                      # Initialize response container
                     with st.chat_message("assistant", avatar="🤖"):
                         llm_start = time.time()
                         response_placeholder = st.empty()
                         full_response = ""
                         
                         try:
-                            # Use invoke for more reliable response instead of streaming
-                            response = llm.invoke(messages)
-                            
-                            # Extract response content safely
-                            if hasattr(response, 'content'):
-                                full_response = response.content
-                            elif hasattr(response, 'text'):
-                                full_response = response.text
-                            else:
-                                full_response = str(response)
-                            
-                            # Clean and validate response
-                            if isinstance(full_response, str):
-                                full_response = full_response.strip()
-                            
-                            # Check if we got a meaningful response
-                            if not full_response or len(full_response) < 5:
-                                st.warning("⚠️ Model memberikan respons kosong. Menggunakan respons alternatif...")
-                                full_response = f"Berdasarkan dokumen yang tersedia mengenai '{user_question}':\n\n{context[:800]}...\n\nUntuk informasi lebih lengkap, silakan hubungi kantor pelayanan terkait."
-                            
+                            # Check API key before making LLM call
+                            openrouter_key = get_env_var("OPENROUTER_API_KEY")
+                            if not openrouter_key:
+                                st.error("❌ OpenRouter API key tidak ditemukan! Silakan periksa konfigurasi API key.")
+                                # Provide detailed response from context without LLM
+                                full_response = f"**Berdasarkan dokumen yang tersedia mengenai '{user_question}':**\n\n{context}\n\n**Catatan:** Respon ini dibuat berdasarkan pencarian dokumen tanpa pemrosesan AI karena masalah konfigurasi API."                             
+                            else:# Use streaming for better user experience
+                                full_response = ""
+                                
+                                # Stream the response with character limit
+                                for chunk in llm.stream(messages):
+                                    if hasattr(chunk, 'content') and chunk.content:
+                                        # Stream full response without character limit
+                                        full_response += chunk.content
+                                        # Update display in real-time with cursor
+                                        response_placeholder.markdown(full_response + "▋")
+                                
+                                # Clean up the final response
+                                if isinstance(full_response, str):
+                                    full_response = full_response.strip()
+                                
+                                # Check if we got a meaningful response
+                                if not full_response or len(full_response) < 5:
+                                    st.warning("⚠️ Model memberikan respons kosong. Menggunakan respons alternatif...")
+                                    full_response = f"Berdasarkan dokumen yang tersedia mengenai '{user_question}':\n\n{context[:800]}...\n\nUntuk informasi lebih lengkap, silakan hubungi kantor pelayanan terkait."                            
+
                             llm_time = time.time() - llm_start
                             total_time = time.time() - start_time
                             
                             # Add performance info
                             perf_info = f"\n\n---\n⚡ **Waktu**: {total_time:.2f}s (Pencarian: {search_time:.2f}s, LLM: {llm_time:.2f}s)"
                             final_response = full_response + perf_info
-                              # Show final response
+                            
+                            # Show final response without cursor
                             response_placeholder.markdown(final_response)
                             answer = final_response  # Store the complete answer
                         
                         except Exception as e:
                             llm_time = time.time() - llm_start
-                            st.error(f"Error saat mengambil respons LLM: {str(e)}")
+                            error_str = str(e)
                             
-                            # Provide fallback response based on context
-                            error_msg = f"Terjadi kesalahan saat memproses permintaan. Namun berdasarkan informasi yang tersedia:\n\n{context[:600]}...\n\nSilakan coba lagi atau hubungi layanan terkait untuk informasi lebih detail."
-                            response_placeholder.markdown(error_msg)
-                            answer = error_msg
+                            # Handle specific API authentication errors
+                            if "401" in error_str or "auth" in error_str.lower():
+                                st.error("❌ **Masalah Autentikasi API**: Silakan periksa API key di sidebar > Debug Info")
+                                # Provide a comprehensive response based on context
+                                fallback_response = f"""**Berdasarkan informasi yang tersedia:**
+
+{context}
+
+**Catatan:** Respon ini dibuat berdasarkan pencarian dokumen. Untuk informasi lengkap, silakan hubungi kantor pelayanan terkait."""
+                                response_placeholder.markdown(fallback_response)
+                                answer = fallback_response
+                            else:
+                                st.error(f"Error saat mengambil respons LLM: {error_str}")
+                                # Provide fallback response based on context
+                                error_msg = f"Terjadi kesalahan saat memproses permintaan. Namun berdasarkan informasi yang tersedia:\n\n{context[:600]}...\n\nSilakan coba lagi atau hubungi layanan terkait untuk informasi lebih detail."
+                                response_placeholder.markdown(error_msg)
+                                answer = error_msg
                 
                 else:
                     answer = "Maaf, tidak menemukan informasi relevan dalam dokumen."
