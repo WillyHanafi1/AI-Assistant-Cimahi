@@ -35,9 +35,9 @@ def check_requirements():
 def check_optional_files():
     """Check optional FAISS files"""
     optional_files = [
-        "faiss_index",
-        "faiss_metadata.json", 
-        "chunks.json"
+        "extracted/faiss_index",
+        "extracted/faiss_metadata.json", 
+        "extracted/chunks.json"
     ]
     
     present_files = []
