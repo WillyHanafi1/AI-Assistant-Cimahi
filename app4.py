@@ -376,6 +376,7 @@ INSTRUKSI PENTING:
                                         full_response += chunk.content
                                         # Update display in real-time with cursor
                                         response_placeholder.markdown(full_response + "▋")
+                                        time.sleep(0.2)  # Slow down streaming (adjust delay as needed)
                                 
                                 # Clean up the final response
                                 if isinstance(full_response, str):
