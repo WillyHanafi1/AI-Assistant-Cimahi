@@ -1,5 +1,4 @@
 # chatbot_pengaduan_ai.py
-
 import streamlit as st
 from langchain_openai import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
@@ -45,9 +44,9 @@ def check_api_keys():
     return openrouter_key is not None and jina_key is not None
 
 # Load FAISS index (wajib ada sebelum aplikasi dijalankan)
-faiss_index_path = "faiss_index"
-faiss_metadata_path = "faiss_metadata.json"  
-chunks_path = "chunks.json"
+faiss_index_path = "extracted/faiss_index"
+faiss_metadata_path = "extracted/faiss_metadata.json"  
+chunks_path = "extracted/chunks.json"
 
 # Initialize flags for file existence
 has_faiss_files = (
@@ -146,7 +145,7 @@ def build_combined_retriever():
     else:
         return None, None, None
 
-def search_similar_chunks_batch(queries, api_key, k=15):
+def search_similar_chunks_batch(queries, api_key, k=50):
     """Search for similar chunks using batch embeddings for multiple queries."""
     faiss_index, chunks_data, metadata = build_combined_retriever()
     
@@ -183,7 +182,7 @@ def search_similar_chunks_batch(queries, api_key, k=15):
     
     return batch_results
 
-def search_similar_chunks(query, api_key, k=15):
+def search_similar_chunks(query, api_key, k=50):
     """Search for similar chunks using FAISS and return actual text content."""
     faiss_index, chunks_data, metadata = build_combined_retriever()
     
@@ -328,7 +327,7 @@ if page == "Chatbot Layanan":
             with st.spinner("🔍 Mencari informasi yang relevan..."):
                 api_key = get_env_var("JINA_API_KEY")
                 search_start = time.time()
-                results = search_similar_chunks(user_question, api_key, k=15)
+                results = search_similar_chunks(user_question, api_key, k=50)
                 search_time = time.time() - search_start
 
                 if results:
