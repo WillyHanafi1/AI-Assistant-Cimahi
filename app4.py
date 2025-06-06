@@ -227,6 +227,7 @@ def classify_department(text):
         "sampah": "DLH",
         "ktp": "Disdukcapil",
         "puskesmas": "Dinkes",
+        "Korupsi": "Inspektorat",
     }
     for keyword, dinas in mapping.items():
         if keyword in text.lower():
