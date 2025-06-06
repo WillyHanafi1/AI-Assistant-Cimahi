@@ -375,8 +375,8 @@ INSTRUKSI PENTING:
                                         # Stream full response without character limit
                                         full_response += chunk.content
                                         # Update display in real-time with cursor
-                                        response_placeholder.markdown(full_response + " ")
-                                        time.sleep(0.05)  # Slow down streaming (adjust delay as needed)
+                                        response_placeholder.markdown(full_response + "")
+                                        time.sleep(0.02)  # Slow down streaming (adjust delay as needed)
                                 
                                 # Clean up the final response
                                 if isinstance(full_response, str):
