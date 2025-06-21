@@ -340,31 +340,42 @@ if page == "Chatbot Layanan":
                         for i, result in enumerate(results[:3], 1):  # Fixed: showing only top 3
                             st.write(f"**{i}. {result['filename']}**")
                             st.write(f"_{result['text'][:150]}..._")                    # Optimized system message for better response reliability
-                    system_prompt = """Kamu adalah chatbot berbasis RAG (Retrieval-Augmented Generation) yang bernama "CIMAS", dibuat untuk memberikan pelayanan informasi kepada masyarakat Kota Cimahi terkait layanan pemerintahan. Tugasmu adalah memberikan jawaban yang akurat, jelas, dan ramah berdasarkan dokumen resmi Pemerintah Kota Cimahi yang tersedia di database.
-
+                    system_prompt = """Kamu adalah chatbot berbasis RAG bernama "CIMAS", dibuat untuk memberikan pelayanan informasi kepada masyarakat Kota Cimahi terkait layanan pemerintahan. Tugasmu adalah memberikan jawaban yang akurat, jelas, ramah, dan sesuai dengan dokumen resmi Pemerintah Kota Cimahi di database.
 Aturan utama:
-1.Selalu gunakan informasi dari konteks dokumen yang relevan untuk menjawab pertanyaan pengguna.
-2.Jawab dalam bahasa Indonesia yang formal namun ramah, sesuai dengan konteks pelayanan publik.
-3.Jika informasi tidak tersedia di database, katakan bahwa kamu tidak memiliki informasi tersebut
-4.Hindari memberikan opini pribadi atau informasi yang tidak berdasarkan dokumen resmi.
-5.Jika pertanyaan tidak jelas, minta klarifikasi dengan sopan.
-6.Pastikan jawabanmu singkat, padat, dan langsung menjawab kebutuhan pengguna.
-7.Gunakan format yang mudah dibaca, seperti poin-poin atau paragraf singkat, jika diperlukan.
+Selalu gunakan informasi dari dokumen resmi di database untuk menjawab pertanyaan.Jawab dalam bahasa Indonesia yang formal namun ramah, sesuai konteks pelayanan publik.
+Jika informasi tidak tersedia, katakan dengan sopan bahwa kamu tidak memiliki data tersebut dan sarankan pengguna menghubungi instansi terkait.
+Hindari opini pribadi atau informasi di luar dokumen resmi.
+Jika pertanyaan tidak jelas, minta klarifikasi dengan sopan.
+Pastikan jawaban singkat, padat, dan langsung menjawab kebutuhan pengguna.
+Gunakan format yang mudah dibaca, seperti poin-poin atau paragraf singkat, jika diperlukan.
+Jika pengguna menyebutkan nama, gunakan nama tersebut untuk personalisasi, tetapi hindari asumsi tentang status pengguna (misalnya, penduduk Cimahi) kecuali dikonfirmasi.
+Tangani pertanyaan tentang identitas pengguna dengan ringkas, hanya ulangi informasi yang diberikan (misalnya, nama) dan tawarkan bantuan lanjutan.
 
-Contoh format jawaban:
--Untuk pertanyaan prosedur: Jelaskan langkah-langkah secara berurutan.
--Untuk pertanyaan kontak: Berikan informasi kontak resmi (jika ada).
--Untuk pertanyaan umum: Berikan penjelasan singkat dan relevan berdasarkan dokumen.
-Konteks tambahan:
-Jika ada pertanyaan sensitif (misalnya, keluhan atau kritik), arahkan pengguna ke bagian slidebar pengaduan masyarakat.
-Jika informasi tidak tersedia di database, katakan bahwa kamu tidak memiliki informasi tersebut, tidak perlu menjawab kemana mana
-Mulai setiap interaksi dengan sapaan ramah, misalnya: "Halo, selamat datang di pelayanan informasi kota cimahi! Bagaimana saya bisa membantu Anda hari ini?""""
+Contoh format jawaban:Prosedur: Jelaskan langkah-langkah secara berurutan.
+Kontak: Berikan informasi kontak resmi (jika ada).
+Identitas: Konfirmasi informasi yang diberikan pengguna (misalnya, nama) dan tanyakan kebutuhan lanjutan.
+Umum: Berikan penjelasan singkat dan relevan berdasarkan dokumen.
 
-                    messages = [
-                        SystemMessage(content=system_prompt),
+Konteks tambahan:Kamu melayani topik seperti kependudukan (KTP, KK, akta), pajak daerah, perizinan, kesehatan, pendidikan, dan informasi umum Pemerintah Kota Cimahi.
+Prioritaskan informasi terkini dan sesuai regulasi terbaru.
+Untuk pertanyaan sensitif (keluhan/kritik), arahkan ke kanal resmi seperti pengaduan masyarakat.
+
+Mulai setiap interaksi dengan sapaan ramah, misalnya: "Halo, selamat datang di CIMAS! Bagaimana saya bisa membantu Anda hari ini?"""
+                    messages = [SystemMessage(content=system_prompt)]
+
+                    # Add previous chat history to messages
+                    for msg in st.session_state.chat_history[:-1]:  # Exclude current question
+                        if msg["role"] == "user":
+                            messages.append(HumanMessage(content=msg["content"]))
+                        elif msg["role"] == "assistant":
+                            # Clean up assistant response from performance info
+                            cleaned_content = msg["content"].split("\n\n---")[0]
+                            messages.append(AIMessage(content=cleaned_content))
+                    
+                    messages.extend([
                         SystemMessage(content=f"KONTEKS DOKUMEN:\n{context}"),
                         HumanMessage(content=f"Pertanyaan: {user_question}")
-                    ]
+                    ])
                       # Initialize response container
                     with st.chat_message("assistant", avatar="🤖"):
                         llm_start = time.time()
@@ -390,14 +401,6 @@ Mulai setiap interaksi dengan sapaan ramah, misalnya: "Halo, selamat datang di p
                                         response_placeholder.markdown(full_response + "")
                                         time.sleep(0.02)  # Slow down streaming (adjust delay as needed)
                                 
-                                # Clean up the final response
-                                if isinstance(full_response, str):
-                                    full_response = full_response.strip()
-                                
-                                # Check if we got a meaningful response
-                                if not full_response or len(full_response) < 5:
-                                    st.warning("⚠️ Model memberikan respons kosong. Menggunakan respons alternatif...")
-                                    full_response = f"Berdasarkan dokumen yang tersedia mengenai '{user_question}':\n\n{context[:800]}...\n\nUntuk informasi lebih lengkap, silakan hubungi kantor pelayanan terkait."                            
 
                             llm_time = time.time() - llm_start
                             total_time = time.time() - start_time
@@ -431,7 +434,7 @@ Mulai setiap interaksi dengan sapaan ramah, misalnya: "Halo, selamat datang di p
                                 error_msg = f"Terjadi kesalahan saat memproses permintaan. Namun berdasarkan informasi yang tersedia:\n\n{context[:600]}...\n\nSilakan coba lagi atau hubungi layanan terkait untuk informasi lebih detail."
                                 response_placeholder.markdown(error_msg)
                                 answer = error_msg
-                
+                        
                 else:
                     answer = "Maaf, tidak menemukan informasi relevan dalam dokumen."
                     with st.chat_message("assistant", avatar="🤖"):
