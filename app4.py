@@ -220,6 +220,69 @@ def save_report(report):
 
 # --- NLP Klasifikasi Dinas ---
 def classify_department(text):
+    """
+    Classify complaint text to determine appropriate department using OpenAI API.
+    Falls back to keyword matching if API call fails.
+    """
+    # Try using OpenAI API for advanced classification
+    try:
+        # Use the existing OpenRouter API connection with a specific prompt for classification
+        messages = [
+            SystemMessage(content="""
+                Kamu adalah AI untuk mengklasifikasikan pengaduan masyarakat ke departemen yang tepat di Kota Cimahi.
+                Berdasarkan teks pengaduan, tentukan departemen yang paling sesuai dari daftar berikut:
+                - Dinas Pekerjaan Umum: untuk masalah infrastruktur jalan, jembatan, drainase, bangunan umum
+                - Dinas Perhubungan: untuk masalah lalu lintas, lampu jalan, rambu, transportasi umum
+                - PDAM: untuk masalah air, pipa, meteran air, kualitas air
+                - DLH: untuk masalah sampah, lingkungan, polusi, taman kota
+                - Disdukcapil: untuk masalah KTP, KK, akta kelahiran, dokumen kependudukan
+                - Dinkes: untuk masalah kesehatan, puskesmas, vaksinasi, sanitasi 
+                - Inspektorat: untuk masalah pengawasan, korupsi, penyalahgunaan wewenang
+                - Lainnya: jika tidak termasuk kategori di atas
+                
+                Berikan HANYA nama departemen tanpa penjelasan tambahan.
+            """),
+            HumanMessage(content=f"Klasifikasikan pengaduan berikut: {text}")
+        ]
+        
+        # Get the API key
+        api_key = get_env_var("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OpenRouter API key not found")
+            
+        # Create a non-streaming LLM for classification (we need the direct response)
+        classifier_llm = ChatOpenAI(
+            openai_api_key=api_key,
+            openai_api_base=get_env_var("OPENROUTER_BASE_URL"),
+            model_name=get_env_var("DEFAULT_MODEL", "deepseek/deepseek-chat"),
+            temperature=0,  # Use low temperature for consistent results
+            streaming=False,  # We need the full response at once
+        )
+        
+        # Get department classification
+        response = classifier_llm.invoke(messages)
+        department = response.content.strip()
+        
+        # Validate the response is one of our expected departments
+        valid_departments = [
+            "Dinas Pekerjaan Umum", "Dinas Perhubungan", "PDAM", 
+            "DLH", "Disdukcapil", "Dinkes", "Inspektorat", "Lainnya"
+        ]
+        
+        if department in valid_departments:
+            return department
+        else:
+            # If response doesn't match expected format, fall back to keyword matching
+            return _classify_by_keywords(text)
+            
+    except Exception as e:
+        # Log the error (could add more sophisticated logging)
+        print(f"Error using API for classification: {e}")
+        # Fall back to keyword matching
+        return _classify_by_keywords(text)
+
+def _classify_by_keywords(text):
+    """Fall back keyword-based classification method"""
     mapping = {
         "jalan": "Dinas Pekerjaan Umum",
         "lampu": "Dinas Perhubungan",
@@ -341,26 +404,26 @@ if page == "Chatbot Layanan":
                             st.write(f"**{i}. {result['filename']}**")
                             st.write(f"_{result['text'][:150]}..._")                    # Optimized system message for better response reliability
                     system_prompt = """Kamu adalah chatbot berbasis RAG bernama "CIMAS", dibuat untuk memberikan pelayanan informasi kepada masyarakat Kota Cimahi terkait layanan pemerintahan. Tugasmu adalah memberikan jawaban yang akurat, jelas, ramah, dan sesuai dengan dokumen resmi Pemerintah Kota Cimahi di database.
-Aturan utama:
-Selalu gunakan informasi dari dokumen resmi di database untuk menjawab pertanyaan.Jawab dalam bahasa Indonesia yang formal namun ramah, sesuai konteks pelayanan publik.
-Jika informasi tidak tersedia, katakan dengan sopan bahwa kamu tidak memiliki data tersebut dan sarankan pengguna menghubungi instansi terkait.
-Hindari opini pribadi atau informasi di luar dokumen resmi.
-Jika pertanyaan tidak jelas, minta klarifikasi dengan sopan.
-Pastikan jawaban singkat, padat, dan langsung menjawab kebutuhan pengguna.
-Gunakan format yang mudah dibaca, seperti poin-poin atau paragraf singkat, jika diperlukan.
-Jika pengguna menyebutkan nama, gunakan nama tersebut untuk personalisasi, tetapi hindari asumsi tentang status pengguna (misalnya, penduduk Cimahi) kecuali dikonfirmasi.
-Tangani pertanyaan tentang identitas pengguna dengan ringkas, hanya ulangi informasi yang diberikan (misalnya, nama) dan tawarkan bantuan lanjutan.
+                                        Aturan utama:
+                                        Selalu gunakan informasi dari dokumen resmi di database untuk menjawab pertanyaan.Jawab dalam bahasa Indonesia yang formal namun ramah, sesuai konteks pelayanan publik.
+                                        Jika informasi tidak tersedia, katakan dengan sopan bahwa kamu tidak memiliki data tersebut dan sarankan pengguna menghubungi instansi terkait.
+                                        Hindari opini pribadi atau informasi di luar dokumen resmi.
+                                        Jika pertanyaan tidak jelas, minta klarifikasi dengan sopan.
+                                        Pastikan jawaban singkat, padat, dan langsung menjawab kebutuhan pengguna.
+                                        Gunakan format yang mudah dibaca, seperti poin-poin atau paragraf singkat, jika diperlukan.
+                                        Jika pengguna menyebutkan nama, gunakan nama tersebut untuk personalisasi, tetapi hindari asumsi tentang status pengguna (misalnya, penduduk Cimahi) kecuali dikonfirmasi.
+                                        Tangani pertanyaan tentang identitas pengguna dengan ringkas, hanya ulangi informasi yang diberikan (misalnya, nama) dan tawarkan bantuan lanjutan.
 
-Contoh format jawaban:Prosedur: Jelaskan langkah-langkah secara berurutan.
-Kontak: Berikan informasi kontak resmi (jika ada).
-Identitas: Konfirmasi informasi yang diberikan pengguna (misalnya, nama) dan tanyakan kebutuhan lanjutan.
-Umum: Berikan penjelasan singkat dan relevan berdasarkan dokumen.
+                                        Contoh format jawaban:Prosedur: Jelaskan langkah-langkah secara berurutan.
+                                        Kontak: Berikan informasi kontak resmi (jika ada).
+                                        Identitas: Konfirmasi informasi yang diberikan pengguna (misalnya, nama) dan tanyakan kebutuhan lanjutan.
+                                        Umum: Berikan penjelasan singkat dan relevan berdasarkan dokumen.
 
-Konteks tambahan:Kamu melayani topik seperti kependudukan (KTP, KK, akta), pajak daerah, perizinan, kesehatan, pendidikan, dan informasi umum Pemerintah Kota Cimahi.
-Prioritaskan informasi terkini dan sesuai regulasi terbaru.
-Untuk pertanyaan sensitif (keluhan/kritik), arahkan ke kanal resmi seperti pengaduan masyarakat.
+                                        Konteks tambahan:Kamu melayani topik seperti kependudukan (KTP, KK, akta), pajak daerah, perizinan, kesehatan, pendidikan, dan informasi umum Pemerintah Kota Cimahi.
+                                        Prioritaskan informasi terkini dan sesuai regulasi terbaru.
+                                        Untuk pertanyaan sensitif (keluhan/kritik), arahkan ke kanal resmi seperti pengaduan masyarakat.
 
-Mulai setiap interaksi dengan sapaan ramah, misalnya: "Halo, selamat datang di CIMAS! Bagaimana saya bisa membantu Anda hari ini?"""
+                                        Mulai setiap interaksi dengan sapaan ramah, misalnya: "Halo, selamat datang di CIMAS! Bagaimana saya bisa membantu Anda hari ini?"""
                     messages = [SystemMessage(content=system_prompt)]
 
                     # Add previous chat history to messages

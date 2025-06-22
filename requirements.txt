@@ -5,3 +5,5 @@ python-dotenv
 requests
 numpy
 faiss-cpu
+transformers
+torch
