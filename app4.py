@@ -457,13 +457,15 @@ if page == "Chatbot Layanan":
                                 
                                 # Stream the response with character limit
                                 for chunk in llm.stream(messages):
-                                    if hasattr(chunk, 'content') and chunk.content:
-                                        # Stream full response without character limit
-                                        full_response += chunk.content
-                                        # Update display in real-time with cursor
-                                        response_placeholder.markdown(full_response + "")
-                                        time.sleep(0.02)  # Slow down streaming (adjust delay as needed)
-                                
+                                    try:
+                                        if hasattr(chunk, 'content') and chunk.content:
+                                            full_response += chunk.content
+                                            # Dynamic delay based on content length
+                                            delay = min(0.02, 0.005 * len(chunk.content))
+                                            response_placeholder.markdown(full_response + "")
+                                            time.sleep(delay)
+                                    except Exception as e:
+                                        st.error(f"Error dalam streaming respons: {e}")
 
                             llm_time = time.time() - llm_start
                             total_time = time.time() - start_time
