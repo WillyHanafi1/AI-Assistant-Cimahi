@@ -1,165 +1,231 @@
-# Smart Chatbot Kota Cimahi
+# CIMAS — AI-Powered Public Service Assistant for Kota Cimahi
 
-✅ **Status**: Production Ready - Deployed and Tested
+<p align="center">
+  <strong>A production-grade RAG (Retrieval-Augmented Generation) chatbot for citizen services, built with FAISS Vector Database, Jina Embeddings v3, and DeepSeek LLM.</strong>
+</p>
 
-Aplikasi chatbot cerdas untuk layanan publik Kota Cimahi menggunakan teknologi AI dan vector search.
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Production%20Ready-brightgreen" alt="Status">
+  <img src="https://img.shields.io/badge/Python-3.8+-blue" alt="Python">
+  <img src="https://img.shields.io/badge/Framework-Streamlit-FF4B4B" alt="Framework">
+  <img src="https://img.shields.io/badge/AI-RAG%20Architecture-purple" alt="AI">
+  <img src="https://img.shields.io/badge/Vector%20DB-FAISS-orange" alt="Vector DB">
+  <img src="https://img.shields.io/badge/LLM-DeepSeek-green" alt="LLM">
+</p>
+
+---
+
+## Overview
+
+**CIMAS** (Cimahi Masyarakat Assistant) is a Generative AI-powered public service chatbot that provides 24/7 automated citizen support for Kota Cimahi. It uses a **RAG Architecture** to answer questions based on official government documents (Peraturan Daerah, Peraturan Walikota) with high accuracy and source attribution.
+
+The system also includes an **AI-powered complaint classification module** that automatically routes citizen complaints to the correct government department using LLM-based classification with keyword fallback.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     CIMAS Architecture                      │
+│                                                             │
+│  ┌──────────┐    ┌──────────────┐    ┌──────────────────┐   │
+│  │  User     │───▶│  Streamlit   │───▶│  Query Pipeline  │   │
+│  │  Query    │    │  Frontend    │    │                  │   │
+│  └──────────┘    └──────────────┘    └────────┬─────────┘   │
+│                                               │             │
+│                        ┌──────────────────────┤             │
+│                        ▼                      ▼             │
+│              ┌──────────────────┐   ┌──────────────────┐    │
+│              │  Jina Embeddings │   │  Embedding Cache  │    │
+│              │  v3 API          │   │  (LRU, max 50)    │    │
+│              └────────┬─────────┘   └──────────────────┘    │
+│                       │                                      │
+│                       ▼                                      │
+│              ┌──────────────────┐                            │
+│              │  FAISS Vector DB │  ← 870 document chunks     │
+│              │  (L2 Search)     │    from 3 Perda/Perwal     │
+│              └────────┬─────────┘                            │
+│                       │ Top-K results (k=50)                 │
+│                       ▼                                      │
+│              ┌──────────────────┐                            │
+│              │  Context Builder │  ← Top 3 chunks × 800 char │
+│              └────────┬─────────┘                            │
+│                       │                                      │
+│                       ▼                                      │
+│              ┌──────────────────┐                            │
+│              │  DeepSeek LLM    │  ← Via OpenRouter API      │
+│              │  (Streaming)     │    temperature=0.1          │
+│              └────────┬─────────┘                            │
+│                       │                                      │
+│                       ▼                                      │
+│              ┌──────────────────┐                            │
+│              │  Streamed Answer │  + source attribution       │
+│              │  + Performance   │  + response time metrics    │
+│              └──────────────────┘                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Features
-- 🤖 **AI Chatbot** dengan kemampuan RAG (Retrieval Augmented Generation)
-- 📝 **Sistem pengaduan masyarakat** dengan klasifikasi otomatis
-- 🛠️ **Dashboard admin** untuk mengelola pengaduan
-- 🔍 **Pencarian dokumen** dengan FAISS vector search
-- ⚡ **Response optimization** dengan fallback handling
-- 🛡️ **Error resilience** dan mode demo otomatis
 
-## Recent Improvements ✨
-- **Fixed LLM Response Issues**: Enhanced reliability with better error handling
-- **Improved System Prompts**: More substantial and relevant responses
-- **Automatic Fallback**: Works even when FAISS files are unavailable
-- **Production Ready**: Tested and optimized for Streamlit Cloud deployment
+### 🤖 RAG Chatbot (Main Feature)
+- **Vector search** over government documents using FAISS with Jina Embeddings v3
+- **Streaming responses** with real-time character rendering for better UX
+- **Source attribution** — shows which documents were used to generate the answer
+- **Performance metrics** — displays search time and LLM inference time per query
+- **Embedding cache** (LRU, max 50 entries) to reduce redundant API calls
+- **Batch embedding** support for multi-query processing
+- **Graceful fallback** — continues working even when FAISS files are unavailable
+
+### 📣 AI Complaint Classification System
+- **LLM-based department routing** — classifies citizen complaints to the correct department using DeepSeek LLM with structured system prompts
+- Routes across **8 government agencies**: Dinas PU, Dinas Perhubungan, PDAM, DLH, Disdukcapil, Dinkes, Inspektorat, and Lainnya
+- **Keyword-based fallback** — if LLM classification fails, falls back to rule-based keyword matching for resilience
+- Auto-generates **unique ticket IDs** for complaint tracking
+
+### 🛠️ Admin Dashboard
+- View all submitted complaints with expandable ticket details
+- Real-time **status management** (Menunggu Tanggapan → Diproses → Selesai)
+- Displays reporter name, contact info, complaint content, timestamp, and assigned department
+
+---
 
 ## Tech Stack
-- **Framework**: Streamlit
-- **AI Model**: OpenRouter API (DeepSeek)
-- **Embeddings**: Jina AI
-- **Vector Search**: FAISS
-- **Backend**: Python
 
-## Quick Deployment 🚀
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | Streamlit | Multi-page web application |
+| **LLM** | DeepSeek (via OpenRouter API) | Generative AI responses + complaint classification |
+| **Embeddings** | Jina Embeddings v3 (API) | Query & document vectorization |
+| **Vector Database** | FAISS (faiss-cpu) | Similarity search over document chunks |
+| **Document Processing** | Custom chunking pipeline | PDF → Text → Chunks → Embeddings → FAISS index |
+| **NLP Framework** | LangChain | LLM abstraction (ChatOpenAI, message schemas) |
+| **Caching** | Streamlit `@cache_resource` + LRU dict | FAISS index & embedding caching |
+| **Deployment** | Streamlit Cloud | Production hosting |
 
-### Streamlit Cloud (Recommended)
-1. **Fork this repository** to your GitHub account
-2. **Get API Keys**:
-   - OpenRouter API: [openrouter.ai](https://openrouter.ai) (free tier available)
-   - Jina AI API: [jina.ai](https://jina.ai) (1000 requests/day free)
-3. **Deploy to Streamlit Cloud**:
-   - Go to [share.streamlit.io](https://share.streamlit.io)
-   - Connect your GitHub and select this repository
-   - Set main file: `app4.py`
-   - Add secrets in Advanced Settings (see `secrets_template.toml`)
-   - Click Deploy!
+---
 
-📖 **Detailed Guide**: See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for complete instructions.
+## Knowledge Base
 
-## Local Development
+The RAG system is built on official government documents:
+
+| Document | Size | Description |
+|----------|------|-------------|
+| Perda Kota Cimahi No. 8 Tahun 2014 | 148 KB (text) | Municipal regulation |
+| Perda No. 8 Tahun 2011 (IMB) | 96 KB (text) | Building permit regulations |
+| Perwal Cimahi No. 6 Tahun 2024 | 138 KB (text) | Mayor's regulation |
+
+**Vector DB Stats:**
+- Total chunks: **870+** document segments
+- FAISS index size: **3.5 MB**
+- Embedding dimensions: **1024** (Jina v3)
+
+---
+
+## Project Structure
+
+```
+AI-Assistant-Cimahi/
+├── app4.py                    # Main application (557 lines)
+│                              #   - RAG chatbot with streaming
+│                              #   - Complaint system + AI classification
+│                              #   - Admin dashboard
+├── mergechunk.py              # FAISS search utility / testing script
+├── deploy_helper.py           # Deployment preparation script
+├── requirements.txt           # Python dependencies
+├── secrets_template.toml      # API key template
+├── EmbeddingModel.ipynb       # Embedding experiments notebook
+├── JinaEmbedding.ipynb        # Jina Embeddings pipeline notebook
+├── DEPLOYMENT_GUIDE.md        # Production deployment guide
+├── .streamlit/
+│   └── config.toml            # Streamlit UI configuration
+├── docs/                      # Source PDF documents (Perda/Perwal)
+├── extracted/                 # Processed data
+│   ├── faiss_index            # FAISS vector index (3.5 MB)
+│   ├── faiss_metadata.json    # Index-to-document mapping
+│   ├── chunks.json            # Document chunks with metadata
+│   ├── embeddings.json        # Raw embedding vectors
+│   └── *.txt                  # Extracted text from PDFs
+└── vectordb/                  # ChromaDB (legacy, replaced by FAISS)
+```
+
+---
+
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+
-- API Keys:
-  - OpenRouter API key
-  - Jina AI API key
+- [OpenRouter API Key](https://openrouter.ai) (free tier available)
+- [Jina AI API Key](https://jina.ai) (1,000 requests/day free)
 
-### Setup
-1. Clone repository
-```bash
-git clone <repository-url>
-cd smart-chatbot
-```
+### Installation
 
-2. Create virtual environment
 ```bash
+# Clone the repository
+git clone https://github.com/WillyHanafi1/AI-Assistant-Cimahi.git
+cd AI-Assistant-Cimahi
+
+# Create virtual environment
 python -m venv env
-source env/bin/activate  # On Windows: env\Scripts\activate
-```
+source env/bin/activate  # Windows: env\Scripts\activate
 
-3. Install dependencies
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-4. Setup environment variables
-```bash
-# Copy template and edit with your API keys
+# Configure API keys
 cp secrets_template.toml .streamlit/secrets.toml
-# Edit .streamlit/secrets.toml with your actual API keys
-```
+# Edit .streamlit/secrets.toml with your API keys
 
-5. Run application
-```bash
+# Run the application
 streamlit run app4.py
 ```
 
-## Deployment to Streamlit Cloud
+### Environment Variables
 
-### Step 1: Prepare Repository
-1. Push your code to GitHub
-2. Make sure these files are included:
-   - `app4.py` (main application)
-   - `requirements.txt` (dependencies)
-   - `.streamlit/config.toml` (configuration)
-
-### Step 2: Deploy to Streamlit Cloud
-1. Go to [share.streamlit.io](https://share.streamlit.io)
-2. Connect your GitHub account
-3. Click "New app"
-4. Select your repository
-5. Set main file path: `app4.py`
-6. Click "Deploy!"
-
-### Step 3: Configure Secrets
-1. In your Streamlit Cloud dashboard, go to app settings
-2. Go to "Secrets" tab
-3. Add the following secrets:
 ```toml
-OPENROUTER_API_KEY = "your_openrouter_api_key_here"
+OPENROUTER_API_KEY = "sk-or-..."
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "deepseek/deepseek-r1-0528:free"
-JINA_API_KEY = "your_jina_api_key_here"
+DEFAULT_MODEL = "deepseek/deepseek-chat"
+JINA_API_KEY = "jina_..."
 ```
 
-### Step 4: Upload FAISS Files (Optional)
-If you have FAISS index files:
-1. Include `faiss_index`, `faiss_metadata.json`, and `chunks.json` in your repository
-2. Or implement a file uploader in the app for dynamic document loading
+---
 
-## API Keys Required
+## Deployment (Streamlit Cloud)
 
-### OpenRouter API
-- Get free API key at [openrouter.ai](https://openrouter.ai)
-- Used for LLM inference
+1. Fork/push this repository to GitHub
+2. Go to [share.streamlit.io](https://share.streamlit.io)
+3. Connect your GitHub account → Select this repository
+4. Set main file: `app4.py`
+5. Add API keys in **Advanced Settings → Secrets**
+6. Click **Deploy**
 
-### Jina AI
-- Get free API key at [jina.ai](https://jina.ai)
-- Used for text embeddings
+For detailed instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
-## File Structure
-```
-smart-chatbot/
-├── app4.py                 # Main application
-├── requirements.txt        # Python dependencies
-├── .streamlit/
-│   ├── config.toml        # Streamlit configuration
-│   └── secrets.toml       # API keys (local only)
-├── .gitignore             # Git ignore file
-├── secrets_template.toml  # Template for secrets
-├── faiss_index           # FAISS vector index (optional)
-├── faiss_metadata.json   # FAISS metadata (optional)
-├── chunks.json           # Document chunks (optional)
-└── README.md             # This file
-```
+---
 
-## Usage
-1. **Chatbot Layanan**: Ask questions about Cimahi city services
-2. **Pengaduan Masyarakat**: Submit public complaints
-3. **Dashboard Admin**: Manage and update complaint status
+## Key Technical Decisions
 
-## Troubleshooting
+| Decision | Rationale |
+|----------|-----------|
+| **FAISS over ChromaDB** | Faster L2 similarity search for production; ChromaDB was used in early development but replaced for performance |
+| **Jina v3 over OpenAI embeddings** | Better multilingual (Indonesian) support, free tier with 1K req/day |
+| **DeepSeek over GPT** | Cost-effective for Bahasa Indonesia responses via OpenRouter free tier |
+| **Streaming enabled** | `llm.stream()` provides real-time character rendering — better UX vs waiting for full response |
+| **Embedding cache (LRU)** | Reduces Jina API calls for repeated/similar queries; capped at 50 entries to prevent memory issues |
+| **Dual classification** | LLM-first for accuracy, keyword-fallback for resilience when API fails |
+| **Top-3 × 800 chars context** | Balances response quality vs token cost; top 3 from 50 FAISS results |
 
-### Common Issues
-1. **FAISS files not found**: App will still work with limited functionality
-2. **API rate limits**: Check your API key quotas
-3. **Slow responses**: Try reducing context size or use faster models
-
-### Performance Tips
-- Use caching for FAISS operations
-- Limit document chunk size
-- Implement proper error handling for API calls
-
-## Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+---
 
 ## License
-This project is open source and available under the MIT License.
+
+This project is open source and available under the [MIT License](LICENSE).
+
+---
+
+<p align="center">
+  Built by <a href="https://github.com/WillyHanafi1">Willy Hanafi</a> · AI Automation Engineer
+</p>
